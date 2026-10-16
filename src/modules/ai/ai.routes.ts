@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import type { z } from 'zod';
+import { requireRole } from '../../middleware/auth';
 import { getInsights, insightsQuery } from './ai.insights';
+import { extractIntake, intakeSchema } from './ai.intake';
 import { aiLimiter } from '../../middleware/rateLimit';
 import { validate } from '../../middleware/validate';
 import { askFilters, askSchema } from './ai.search';
@@ -19,6 +21,14 @@ aiRoutes.get('/status', (_req, res) => {
 aiRoutes.post('/search', aiLimiter(20), validate({ body: askSchema }), async (req, res) => {
   const data = await askFilters(req.body);
   res.json({ success: true, data });
+});
+
+/**
+ * Smart intake: referral note → suggested patient fields. Admin-only (it
+ * feeds patient creation); the form is pre-filled for review, never saved.
+ */
+aiRoutes.post('/intake', requireRole('admin'), aiLimiter(10), validate({ body: intakeSchema }), async (req, res) => {
+  res.json({ success: true, data: await extractIntake(req.body) });
 });
 
 /**
