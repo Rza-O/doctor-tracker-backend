@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import mongoose from 'mongoose';
 import morgan from 'morgan';
 import { env, isProd } from './config/env';
+import { requireAuth } from './middleware/auth';
 import { errorHandler, notFound } from './middleware/errorHandler';
 import { authRoutes } from './modules/auth/auth.routes';
 
@@ -33,7 +34,12 @@ export function createApp() {
     });
   });
 
+  // ── Public routes (health above, auth here) ──
   app.use('/api/v1/auth', authRoutes);
+
+  // ── Secure by default: every route registered below requires a valid
+  // session. Write actions additionally use requireRole('admin'). ──
+  app.use('/api/v1', requireAuth);
 
   app.use(notFound);
   app.use(errorHandler);

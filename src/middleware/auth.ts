@@ -1,5 +1,6 @@
 import type { RequestHandler } from 'express';
 import jwt from 'jsonwebtoken';
+import type { Role } from '../constants/domain';
 import { ACCESS_COOKIE } from '../modules/auth/auth.cookies';
 import { ApiError } from '../utils/ApiError';
 import { verifyAccessToken } from '../utils/tokens';
@@ -28,3 +29,17 @@ export const requireAuth: RequestHandler = (req, _res, next) => {
 
   next();
 };
+
+/**
+ * Authorization guard: runs after requireAuth and allows only the given roles.
+ * 401 = we don't know who you are; 403 = we know, but you're not allowed.
+ *
+ *   router.delete('/:id', requireRole('admin'), remove)
+ */
+export function requireRole(...allowed: Role[]): RequestHandler {
+  return (req, _res, next) => {
+    if (!req.user) throw ApiError.unauthorized();
+    if (!allowed.includes(req.user.role)) throw ApiError.forbidden();
+    next();
+  };
+}
