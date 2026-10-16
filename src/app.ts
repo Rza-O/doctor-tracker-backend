@@ -6,6 +6,7 @@ import mongoose from 'mongoose';
 import morgan from 'morgan';
 import { env, isProd } from './config/env';
 import { errorHandler, notFound } from './middleware/errorHandler';
+import { authRoutes } from './modules/auth/auth.routes';
 
 export function createApp() {
   const app = express();
@@ -31,6 +32,8 @@ export function createApp() {
       },
     });
   });
+
+  app.use('/api/v1/auth', authRoutes);
 
   app.use(notFound);
   app.use(errorHandler);
