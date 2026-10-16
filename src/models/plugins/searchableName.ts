@@ -11,6 +11,15 @@ export function searchableName(schema: Schema) {
   schema.add({ nameTokens: { type: [String], select: false } });
   schema.index({ nameTokens: 1 });
 
+  // select:false only hides the field on reads; a freshly created document
+  // still has it, so strip it when serializing to JSON as well.
+  schema.set('toJSON', {
+    transform: (_doc, ret: Record<string, unknown>) => {
+      delete ret.nameTokens;
+      return ret;
+    },
+  });
+
   schema.pre('validate', function () {
     const name = this.get('name');
     if (typeof name === 'string') this.set('nameTokens', tokenize(name));

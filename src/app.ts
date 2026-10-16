@@ -8,6 +8,8 @@ import { env, isProd } from './config/env';
 import { requireAuth } from './middleware/auth';
 import { errorHandler, notFound } from './middleware/errorHandler';
 import { authRoutes } from './modules/auth/auth.routes';
+import { doctorRoutes } from './modules/doctors/doctors.routes';
+import { metaRoutes } from './modules/meta/meta.routes';
 
 export function createApp() {
   const app = express();
@@ -40,6 +42,8 @@ export function createApp() {
   // ── Secure by default: every route registered below requires a valid
   // session. Write actions additionally use requireRole('admin'). ──
   app.use('/api/v1', requireAuth);
+  app.use('/api/v1/meta', metaRoutes);
+  app.use('/api/v1/doctors', doctorRoutes);
 
   app.use(notFound);
   app.use(errorHandler);
