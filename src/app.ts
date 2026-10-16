@@ -11,6 +11,7 @@ import { authRoutes } from './modules/auth/auth.routes';
 import { doctorRoutes } from './modules/doctors/doctors.routes';
 import { metaRoutes } from './modules/meta/meta.routes';
 import { patientRoutes } from './modules/patients/patients.routes';
+import { statsRoutes } from './modules/stats/stats.routes';
 
 export function createApp() {
   const app = express();
@@ -46,6 +47,7 @@ export function createApp() {
   app.use('/api/v1/meta', metaRoutes);
   app.use('/api/v1/doctors', doctorRoutes);
   app.use('/api/v1/patients', patientRoutes);
+  app.use('/api/v1/stats', statsRoutes);
 
   app.use(notFound);
   app.use(errorHandler);
