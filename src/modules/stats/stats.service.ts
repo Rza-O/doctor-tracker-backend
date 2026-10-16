@@ -24,31 +24,50 @@ export async function buildDashboardStats(range: StatRange) {
   const start = rangeStart(range, now);
   const { monthStart, lastMonthStart, lastMonthSamePoint } = monthWindows(now);
 
-  const [totalDoctors, totalPatients, newThisMonth, newLastMonthToDate, series, breakdowns, perDoctor, doctorsBySpec] =
-    await Promise.all([
-      DoctorModel.estimatedDocumentCount(),
-      PatientModel.estimatedDocumentCount(),
-      // Both counts are index range scans on { admissionDate: -1 }.
-      PatientModel.countDocuments({ admissionDate: { $gte: monthStart } }),
-      PatientModel.countDocuments({ admissionDate: { $gte: lastMonthStart, $lt: lastMonthSamePoint } }),
-      admissionsSeries(start, unit),
-      patientBreakdowns(),
-      patientsPerDoctor(),
-      DoctorModel.aggregate<CountRow>([{ $group: { _id: '$specialization', count: { $sum: 1 } } }]),
-    ]);
+  // Every chart describes patients ADMITTED IN THE SELECTED PERIOD, so the
+  // period switch changes all of them consistently. The KPI tiles are an
+  // all-time snapshot and stay independent of it.
+  const inPeriod = { admissionDate: { $gte: start } };
+
+  const [
+    totalDoctors,
+    totalPatients,
+    inCare,
+    critical,
+    newThisMonth,
+    newLastMonthToDate,
+    series,
+    breakdowns,
+    perDoctor,
+    doctorsBySpec,
+  ] = await Promise.all([
+    DoctorModel.estimatedDocumentCount(),
+    PatientModel.estimatedDocumentCount(),
+    // All-time snapshot counts for the KPI tiles.
+    PatientModel.countDocuments({ status: { $in: ['admitted', 'under-treatment'] } }),
+    PatientModel.countDocuments({ severity: 'critical' }), // { severity, admissionDate } index
+    // Both counts are index range scans on { admissionDate: -1 }.
+    PatientModel.countDocuments({ admissionDate: { $gte: monthStart } }),
+    PatientModel.countDocuments({ admissionDate: { $gte: lastMonthStart, $lt: lastMonthSamePoint } }),
+    admissionsSeries(start, unit),
+    patientBreakdowns(inPeriod),
+    patientsPerDoctor(inPeriod),
+    DoctorModel.aggregate<CountRow>([{ $group: { _id: '$specialization', count: { $sum: 1 } } }]),
+  ]);
 
   const byStatus = fillCounts(breakdowns.byStatus, PATIENT_STATUSES);
   const bySeverity = fillCounts(breakdowns.bySeverity, SEVERITIES);
-  const count = (rows: { key: string; count: number }[], key: string) => rows.find((r) => r.key === key)?.count ?? 0;
 
   return {
     range,
     generatedAt: now.toISOString(),
+    // What the period-scoped sections cover, so the UI can say so.
+    period: { from: start.toISOString(), admissions: bySeverity.reduce((sum, r) => sum + r.count, 0) },
     kpis: {
       totalDoctors,
       totalPatients,
-      inCare: count(byStatus, 'admitted') + count(byStatus, 'under-treatment'),
-      critical: count(bySeverity, 'critical'),
+      inCare,
+      critical,
       avgPatientsPerDoctor: totalDoctors ? Math.round((totalPatients / totalDoctors) * 10) / 10 : 0,
       newThisMonth,
       newLastMonthToDate,
@@ -94,12 +113,14 @@ function admissionsSeries(start: Date, unit: Unit) {
 }
 
 /**
- * The three whole-collection breakdowns share ONE pass over the patients via
- * $facet, instead of three separate scans.
+ * The three breakdowns share ONE pass over the period's patients via $facet,
+ * instead of three separate scans. The leading $match uses the admissionDate
+ * index, so only the period's documents enter the facet.
  */
-async function patientBreakdowns() {
+async function patientBreakdowns(match: Record<string, unknown>) {
   const group = (field: string) => [{ $group: { _id: `$${field}`, count: { $sum: 1 } } }];
   const [result] = await PatientModel.aggregate<{ byCondition: CountRow[]; bySeverity: CountRow[]; byStatus: CountRow[] }>([
+    { $match: match },
     { $facet: { byCondition: group('condition'), bySeverity: group('severity'), byStatus: group('status') } },
   ]);
   return result!;
@@ -110,11 +131,12 @@ async function patientBreakdowns() {
  * doctors and patients per specialization. $lookup only joins ~100 grouped
  * rows (one per doctor), never the 10k patients.
  */
-async function patientsPerDoctor() {
+async function patientsPerDoctor(match: Record<string, unknown>) {
   const [result] = await PatientModel.aggregate<{
     top: { doctorId: string; name: string; specialization: string; patients: number }[];
     bySpecialization: CountRow[];
   }>([
+    { $match: match },
     { $group: { _id: '$doctor', patients: { $sum: 1 } } },
     {
       $lookup: {
