@@ -2,7 +2,7 @@ import bcrypt from 'bcryptjs';
 import type { Role } from '../../constants/domain';
 import { UserModel } from '../../models/User';
 import { ApiError } from '../../utils/ApiError';
-import { verifyPassword } from '../../utils/password';
+import { hashPassword, needsRehash, SALT_ROUNDS, verifyPassword } from '../../utils/password';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../../utils/tokens';
 import type { LoginInput } from './auth.schema';
 
@@ -10,7 +10,8 @@ export type PublicUser = { _id: string; name: string; email: string; role: Role 
 
 // Compared against when the email doesn't exist, so a wrong email takes as
 // long as a wrong password — response time can't reveal which emails exist.
-const DUMMY_HASH = bcrypt.hashSync('timing-equalizer', 12);
+// Must use the same cost as real hashes, or the timing would differ again.
+const DUMMY_HASH = bcrypt.hashSync('timing-equalizer', SALT_ROUNDS);
 
 const invalidCredentials = () => ApiError.unauthorized('Invalid email or password');
 
@@ -31,6 +32,12 @@ export async function login({ email, password }: LoginInput) {
 
   const passwordOk = await verifyPassword(password, user?.passwordHash ?? DUMMY_HASH);
   if (!user || !passwordOk) throw invalidCredentials();
+
+  // Transparent upgrade: we only ever see the plain password at login, so
+  // that's the moment to re-hash an outdated hash with the current cost.
+  if (needsRehash(user.passwordHash)) {
+    await UserModel.updateOne({ _id: user._id }, { passwordHash: await hashPassword(password) });
+  }
 
   return { user: toPublicUser(user), ...issueTokens(user) };
 }
