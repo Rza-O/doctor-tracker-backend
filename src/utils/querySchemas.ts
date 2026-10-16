@@ -14,7 +14,7 @@ export const pagination = {
 };
 
 // Accepts "2026-01-31" or a full ISO timestamp.
-const isoDate = z.union([z.iso.date(), z.iso.datetime({ offset: true })]);
+export const isoDate = z.union([z.iso.date(), z.iso.datetime({ offset: true })]);
 
 export const dateRange = {
   from: isoDate.transform((s) => new Date(s)).optional(),

@@ -1,11 +1,7 @@
 import { z } from 'zod';
 import { SPECIALIZATIONS } from '../../constants/domain';
+import { personName, phone } from '../../utils/fieldSchemas';
 import { csvEnum, dateRange, pagination, sortSchema } from '../../utils/querySchemas';
-
-export const phone = z
-  .string()
-  .trim()
-  .regex(/^\+?[0-9][0-9\s-]{6,19}$/, 'Enter a valid phone number');
 
 export const createDoctorSchema = z.object({
   // "Dr." is added by the UI; strip it if typed so names stay consistent and
@@ -14,7 +10,7 @@ export const createDoctorSchema = z.object({
     .string()
     .trim()
     .transform((s) => s.replace(/^dr\.?\s+/i, ''))
-    .pipe(z.string().min(2, 'Name is too short').max(100)),
+    .pipe(personName),
   specialization: z.enum(SPECIALIZATIONS),
   hospital: z.string().trim().min(2).max(150),
   phone,

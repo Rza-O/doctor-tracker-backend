@@ -1,6 +1,8 @@
 // Small seeded pseudo-random generator (mulberry32). Same seed → same sequence,
-// so every `npm run seed` produces identical data (reproducible screenshots,
-// stable demo) without pulling in a faker dependency.
+// so every `npm run seed` produces the same data shape and statistics without
+// pulling in a faker dependency. (Individual rows can differ between days:
+// dates are relative to "now", and date sampling consumes a varying number of
+// random draws.)
 export function createRandom(seed: number) {
   let state = seed >>> 0;
 

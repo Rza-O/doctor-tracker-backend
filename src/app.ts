@@ -10,6 +10,7 @@ import { errorHandler, notFound } from './middleware/errorHandler';
 import { authRoutes } from './modules/auth/auth.routes';
 import { doctorRoutes } from './modules/doctors/doctors.routes';
 import { metaRoutes } from './modules/meta/meta.routes';
+import { patientRoutes } from './modules/patients/patients.routes';
 
 export function createApp() {
   const app = express();
@@ -44,6 +45,7 @@ export function createApp() {
   app.use('/api/v1', requireAuth);
   app.use('/api/v1/meta', metaRoutes);
   app.use('/api/v1/doctors', doctorRoutes);
+  app.use('/api/v1/patients', patientRoutes);
 
   app.use(notFound);
   app.use(errorHandler);
