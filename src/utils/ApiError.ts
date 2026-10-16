@@ -1,5 +1,6 @@
 // Operational errors we throw on purpose. Anything that is not an ApiError is
 // treated as an unexpected bug by the error handler.
+// operational vs programmer errors handled
 export class ApiError extends Error {
   constructor(
     public readonly statusCode: number,
