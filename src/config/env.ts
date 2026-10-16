@@ -7,6 +7,8 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.coerce.number().int().positive().default(4000),
   MONGODB_URI: z.string().startsWith('mongodb', 'MONGODB_URI must be a mongodb:// or mongodb+srv:// URI'),
+  // Set explicitly so a URI without a path never silently falls back to `test`.
+  MONGODB_DB_NAME: z.string().min(1).default('doctor_tracker'),
   CLIENT_ORIGIN: z.string().url().default('http://localhost:3000'),
 });
 

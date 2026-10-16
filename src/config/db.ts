@@ -9,6 +9,7 @@ export async function connectDB(): Promise<void> {
   mongoose.connection.on('error', (err) => console.error('MongoDB error:', err.message));
 
   await mongoose.connect(env.MONGODB_URI, {
+    dbName: env.MONGODB_DB_NAME,
     // Building indexes on every boot is fine in dev; in production indexes are
     // synced explicitly (seed/migration script) so app start stays fast.
     autoIndex: !isProd,
