@@ -7,6 +7,7 @@ import morgan from 'morgan';
 import { env, isProd } from './config/env';
 import { requireAuth } from './middleware/auth';
 import { errorHandler, notFound } from './middleware/errorHandler';
+import { aiRoutes } from './modules/ai/ai.routes';
 import { authRoutes } from './modules/auth/auth.routes';
 import { doctorRoutes } from './modules/doctors/doctors.routes';
 import { metaRoutes } from './modules/meta/meta.routes';
@@ -48,6 +49,7 @@ export function createApp() {
   app.use('/api/v1/doctors', doctorRoutes);
   app.use('/api/v1/patients', patientRoutes);
   app.use('/api/v1/stats', statsRoutes);
+  app.use('/api/v1/ai', aiRoutes);
 
   app.use(notFound);
   app.use(errorHandler);

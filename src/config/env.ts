@@ -20,6 +20,20 @@ const envSchema = z
     JWT_REFRESH_SECRET: z.string().min(32, 'Use at least 32 random characters'),
     JWT_ACCESS_EXPIRES_IN: duration.default('15m'),
     JWT_REFRESH_EXPIRES_IN: duration.default('7d'),
+
+    // AI is optional: without a key the AI features are disabled and the app
+    // works normally (filters, dashboard, everything else).
+    AI_PROVIDER: z.enum(['gemini', 'none']).default('gemini'),
+    GEMINI_API_KEY: z
+      .string()
+      .optional()
+      .transform((v) => (v && !v.startsWith('<') ? v : undefined)),
+    // Chosen by measurement (M10): fast + reliable on the free tier, with a
+    // fallback for 503 "overloaded" / timeouts / retired models.
+    GEMINI_MODEL: z.string().min(1).default('gemini-3.1-flash-lite'),
+    GEMINI_FALLBACK_MODEL: z.string().min(1).default('gemini-3.5-flash-lite'),
+    // Per attempt. Interactive features can't wait long; up to 3 attempts total.
+    AI_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60_000).default(8_000),
   })
   .refine((e) => e.JWT_ACCESS_SECRET !== e.JWT_REFRESH_SECRET, {
     message: 'JWT_ACCESS_SECRET and JWT_REFRESH_SECRET must be different',
