@@ -12,7 +12,8 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
-    "seed": "tsx src/scripts/seed/index.ts"
+    "seed": "tsx src/scripts/seed/index.ts",
+    "ai:eval": "tsx src/scripts/ai-eval.ts"
   },
   "dependencies": {
     "@google/genai": "^2.30.0",
