@@ -8,6 +8,9 @@ const userSchema = new Schema(
     // Never returned by default; auth code opts in with .select('+passwordHash').
     passwordHash: { type: String, required: true, select: false },
     role: { type: String, enum: ROLES, default: 'viewer', required: true },
+    // Embedded in refresh tokens. Incrementing it (on logout) invalidates every
+    // refresh token issued before — "log out everywhere" without a sessions table.
+    tokenVersion: { type: Number, default: 0, select: false },
   },
   { timestamps: true, versionKey: false },
 );
