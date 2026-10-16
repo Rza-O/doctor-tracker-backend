@@ -11,6 +11,11 @@ const store = new Map<string, Entry>();
  * In-memory = per server instance and lost on restart; with several instances
  * this would move to Redis.
  */
+/** Drop an entry so the next call recomputes (e.g. a user-requested refresh). */
+export function invalidate(key: string) {
+  store.delete(key);
+}
+
 export function cached<T>(key: string, ttlMs: number, compute: () => Promise<T>): Promise<T> {
   const hit = store.get(key);
   if (hit && hit.expiresAt > Date.now()) return hit.value as Promise<T>;

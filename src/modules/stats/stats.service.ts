@@ -1,6 +1,7 @@
 import { CONDITIONS, PATIENT_STATUSES, SEVERITIES, SPECIALIZATIONS } from '../../constants/domain';
 import { DoctorModel } from '../../models/Doctor';
 import { PatientModel } from '../../models/Patient';
+import { cached } from '../../utils/cache';
 import type { StatRange } from './stats.schema';
 
 // All date grouping happens in Dhaka time so "October" means the clinic's
@@ -13,6 +14,15 @@ type Unit = 'day' | 'week' | 'month';
 const RANGE_UNIT: Record<StatRange, Unit> = { '30d': 'day', '90d': 'week', '12m': 'month' };
 
 type CountRow = { _id: string; count: number };
+
+// Dashboard numbers don't need to be real-time to the second: a short cache
+// makes repeat visits instant and keeps load off the database. Shared by the
+// stats endpoint and the AI insights, so both describe the same numbers.
+const STATS_TTL_MS = 60_000;
+
+export const getDashboardStats = (range: StatRange) => cached(`stats:${range}`, STATS_TTL_MS, () => buildDashboardStats(range));
+
+export type DashboardStats = Awaited<ReturnType<typeof buildDashboardStats>>;
 
 /**
  * Builds the whole dashboard. Independent aggregations run in parallel, each

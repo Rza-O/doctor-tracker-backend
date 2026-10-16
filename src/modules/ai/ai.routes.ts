@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import type { z } from 'zod';
+import { getInsights, insightsQuery } from './ai.insights';
 import { aiLimiter } from '../../middleware/rateLimit';
 import { validate } from '../../middleware/validate';
 import { askFilters, askSchema } from './ai.search';
@@ -17,4 +19,13 @@ aiRoutes.get('/status', (_req, res) => {
 aiRoutes.post('/search', aiLimiter(20), validate({ body: askSchema }), async (req, res) => {
   const data = await askFilters(req.body);
   res.json({ success: true, data });
+});
+
+/**
+ * Dashboard insights from aggregated statistics only (cached 10 min per
+ * period; ?refresh=1 regenerates). Rate-limited since a refresh costs a model call.
+ */
+aiRoutes.get('/insights', aiLimiter(10), validate({ query: insightsQuery }), async (req, res) => {
+  const { range, refresh } = req.query as unknown as z.output<typeof insightsQuery>;
+  res.json({ success: true, data: await getInsights(range, refresh) });
 });
