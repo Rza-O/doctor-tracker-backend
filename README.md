@@ -173,7 +173,54 @@ Patients *reference* doctors rather than being embedded inside them. A doctor ca
 **Other optimizations.**
 - The page query and `countDocuments` run **in parallel**. An unfiltered count uses `estimatedDocumentCount` (metadata, O(1)).
 - `.lean()` on reads, so there is no per-row Mongoose document overhead. The doctor list gets its patient counts from **one** grouped aggregation for the whole page, not one query per doctor.
-- Dashboard stats run as **parallel focused aggregations** (not one huge `$facet`), each starting with an indexed `$match`. Time buckets use the **Asia/Dhaka** time zone, and missing days are filled so the series has no gaps. The result is cached in memory for 60 s. The cache stores the *promise*, so concurrent requests share one computation.
+- Dashboard stats: time buckets use the **Asia/Dhaka** time zone, and missing days are filled so the series has no gaps. "New this month" is compared with the *same number of days* of last month, not the whole month. The result is cached in memory for 60 s, and the cache stores the *promise*, so concurrent requests share one computation (first call ≈370 ms, cached ≈3 ms).
+
+---
+
+## Technical decisions
+
+### 1. Dashboard stats: parallel focused aggregations instead of one big `$facet`
+
+**Context.** One dashboard request needs about eight different results:
+- totals
+- this month vs last month
+- an admissions time series
+- breakdowns by condition, severity and status
+- top doctors
+- workload per specialty
+
+The obvious way is a single aggregation whose `$facet` stage computes everything in one round trip.
+
+**Decision.** Run small, focused queries **concurrently** with `Promise.all`, each shaped to use the best index. `$facet` is used only where it really helps.
+
+**Why.**
+- **`$facet` sub-pipelines can't use indexes.** They all work on whatever documents enter the facet. Putting everything in one facet means reading every patient, even for the counts that could have been answered from the `admissionDate` index range.
+- Separate queries each pick their own index. Running them concurrently, the total time is about the slowest query, not the sum of all of them.
+- `estimatedDocumentCount()` answers the totals from collection metadata, without reading any documents.
+- **Where `$facet` *is* used, on purpose:**
+  - The condition, severity and status breakdowns all need the same set of patients: the period's, selected first by an indexed `$match`. So one shared pass beats three scans.
+  - Patients are grouped by doctor *once* (10,000 rows → about 100). Only those ~100 rows are joined to doctors with `$lookup`, and a `$facet` then produces both "top 10 doctors" and "per specialty".
+- Small functions are readable and testable on their own, and the AI insights feature reuses them directly.
+
+**Trade-off.** Several round trips to the database instead of one, and more code to read. The 60 s promise cache makes the cost negligible. At much larger scale I'd pre-compute daily rollups into a summary collection (`$merge` on a schedule).
+
+### 2. Name search: word tokens on a multikey index instead of `$regex` or a `$text` index
+
+**Context.** Users type part of a name ("rahm") and expect matches on *any* word, last names included, while 10,000+ records stay fast.
+
+**Options.**
+- **Unanchored `$regex` (`/rahm/i`).** Simplest, but it can't use an index, so every search scans the whole collection.
+- **A `$text` index.** Indexed, but it matches whole stemmed words, **not prefixes**, so "rahm" doesn't find "Rahman". It also allows only one text index per collection.
+- **Anchored regex on `name`.** Indexed, but it matches only the *first* word.
+- **Atlas Search.** Best quality (fuzzy matching, autocomplete), but tied to Atlas and more setup.
+
+**Decision.** A small Mongoose plugin stores the lowercased words of each name in `nameTokens`, which has a multikey index. Each search word becomes an **anchored, regex-escaped prefix** query on that array, and every word must match.
+- The plugin has a document hook for create and save, and a query hook for `findOneAndUpdate` and `updateOne`, because document hooks don't run on query updates.
+- `nameTokens` is hidden from API responses.
+
+**Result.** "rahm" finds every "… Rahman" by last name. "farhana rah" narrows to people matching both words. `explain()` shows `IXSCAN` with 20 documents examined for 20 returned. Regex characters such as `.*` are escaped and treated as plain text.
+
+**Trade-off.** There's no typo tolerance, and the stored token array adds a little to each document. The next step is Atlas Search.
 
 ---
 
