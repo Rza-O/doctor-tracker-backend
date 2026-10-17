@@ -25,7 +25,11 @@ const hint: CookieOptions = { ...base, httpOnly: false, path: '/' };
 
 export function setAuthCookies(res: Response, tokens: { accessToken: string; refreshToken: string }) {
   const refreshMaxAge = durationToMs(env.JWT_REFRESH_EXPIRES_IN);
-  res.cookie(ACCESS_COOKIE, tokens.accessToken, { ...base, path: '/', maxAge: durationToMs(env.JWT_ACCESS_EXPIRES_IN) });
+  // The access JWT expires after 15 min, but its COOKIE lives as long as the
+  // session. If the browser dropped the cookie at 15 min, the API would see no
+  // token (plain 401) instead of an expired one (401 TOKEN_EXPIRED), and the
+  // frontend could not tell "refresh me" from "logged out".
+  res.cookie(ACCESS_COOKIE, tokens.accessToken, { ...base, path: '/', maxAge: refreshMaxAge });
   res.cookie(REFRESH_COOKIE, tokens.refreshToken, { ...base, path: REFRESH_PATH, maxAge: refreshMaxAge });
   // Lives exactly as long as the refresh token.
   res.cookie(SESSION_HINT_COOKIE, '1', { ...hint, maxAge: refreshMaxAge });
